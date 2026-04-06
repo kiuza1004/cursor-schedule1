@@ -201,6 +201,13 @@ body {
   line-height: 1.1;
 }
 
+.cal-cell-lunar {
+  line-height: 1;
+  font-size: 0.62rem;
+  color: var(--muted);
+  margin-top: 1px;
+}
+
 .cal-dots {
   display: flex;
   gap: 3px;
@@ -289,6 +296,12 @@ textarea {
   font-weight: 600;
 }
 
+.btn-danger {
+  border-color: #7f1d1d;
+  background: #3f1616;
+  color: #fecaca;
+}
+
 .btn-inline {
   flex: 0 0 auto;
 }
@@ -306,6 +319,34 @@ textarea {
   margin-bottom: 0.35rem;
   cursor: pointer;
   background: var(--bg);
+}
+
+.list li.schedule-item {
+  position: relative;
+  overflow: hidden;
+  padding: 0;
+  touch-action: pan-y;
+}
+
+.schedule-content {
+  position: relative;
+  z-index: 2;
+  background: var(--bg);
+  padding: 0.45rem 0.55rem;
+  transition: transform 0.18s ease;
+  will-change: transform;
+}
+
+.schedule-item.is-swiped .schedule-content {
+  transform: translateX(-78px);
+}
+
+.swipe-delete-btn {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1;
 }
 
 .list li:hover {
