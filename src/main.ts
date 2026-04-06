@@ -85,7 +85,6 @@ const state: {
   formBaseline: FormSnapshot;
   expanded: Expanded;
   anniversaryListVisible: boolean;
-  swipedScheduleId: string | null;
   search: SearchState;
   modal: null | { message: string; onYes: () => void; onNo: () => void };
 } = {
@@ -97,7 +96,6 @@ const state: {
   formBaseline: emptyFormSnapshot(),
   expanded: { schedule: false, anniversary: false, search: false },
   anniversaryListVisible: false,
-  swipedScheduleId: null,
   search: (() => {
     const { from, to } = defaultSearchRange();
     return {
@@ -328,13 +326,11 @@ function render(): void {
         }`
       : "알람 없음";
     listItems.push(
-      `<li class="schedule-item ${state.swipedScheduleId === s.id ? "is-swiped" : ""}" data-sid="${escapeAttr(
-        s.id
-      )}"><button type="button" class="btn btn-small btn-danger swipe-delete-btn" data-del-sid="${escapeAttr(
-        s.id
-      )}">삭제</button><div class="schedule-content"><div>${escapeHtml(s.memo)}</div><div class="list-meta">${escapeHtml(
+      `<li data-sid="${escapeAttr(s.id)}"><div>${escapeHtml(s.memo)}</div><div class="list-meta">${escapeHtml(
         alarmTxt
-      )}</div></div></li>`
+      )}</div><div class="list-meta"><button type="button" class="btn btn-small btn-danger" data-del-sid="${escapeAttr(
+        s.id
+      )}">삭제</button></div></li>`
     );
   }
 
@@ -579,12 +575,6 @@ function render(): void {
     li.addEventListener("click", () => {
       const id = (li as HTMLElement).dataset.sid;
       if (!id) return;
-      if ((li as HTMLElement).dataset.skipClick === "1") return;
-      if (state.swipedScheduleId === id) {
-        state.swipedScheduleId = null;
-        render();
-        return;
-      }
       const s = state.data.schedules.find((x) => x.id === id);
       if (!s) return;
       const snap = scheduleToDraft(s);
@@ -621,7 +611,6 @@ function render(): void {
         "선택한 일정을 삭제할까요?",
         () => {
           closeModal();
-          state.swipedScheduleId = null;
           state.data.schedules = state.data.schedules.filter((x) => x.id !== id);
           if (state.draft.editingId === id) {
             const e = emptyFormSnapshot();
@@ -638,7 +627,6 @@ function render(): void {
       );
     });
   });
-  wireSwipeToDelete(app);
 
   document.getElementById("btn-anniv-add")?.addEventListener("click", () => {
     const form = document.getElementById("anniv-form");
@@ -720,82 +708,6 @@ function wireDraftSync(app: HTMLElement): void {
   });
   beforeEl?.addEventListener("change", () => {
     state.draft.alarmBefore = Number(beforeEl.value);
-  });
-}
-
-function wireSwipeToDelete(app: HTMLElement): void {
-  const items = app.querySelectorAll("#day-list li.schedule-item[data-sid]");
-  items.forEach((itemEl) => {
-    const item = itemEl as HTMLElement;
-    const id = item.dataset.sid;
-    if (!id) return;
-    const content = item.querySelector(".schedule-content") as HTMLElement | null;
-    if (!content) return;
-    let startX = 0;
-    let startY = 0;
-    let moved = false;
-    let lockedHorizontal = false;
-    const maxSwipe = 78;
-    const openThreshold = 42;
-
-    item.addEventListener(
-      "touchstart",
-      (ev) => {
-        if (ev.touches.length !== 1) return;
-        const t = ev.touches[0];
-        startX = t.clientX;
-        startY = t.clientY;
-        moved = false;
-        lockedHorizontal = false;
-        content.style.transition = "none";
-      },
-      { passive: true }
-    );
-
-    item.addEventListener(
-      "touchmove",
-      (ev) => {
-        if (ev.touches.length !== 1) return;
-        const t = ev.touches[0];
-        const dx = t.clientX - startX;
-        const dy = t.clientY - startY;
-        if (!lockedHorizontal) {
-          if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)) {
-            lockedHorizontal = true;
-          } else {
-            return;
-          }
-        }
-        if (!lockedHorizontal) return;
-        if (dx < 0) {
-          moved = true;
-          const tx = Math.max(dx, -maxSwipe);
-          content.style.transform = `translateX(${tx}px)`;
-          ev.preventDefault();
-        }
-      },
-      { passive: false }
-    );
-
-    item.addEventListener("touchend", () => {
-      content.style.transition = "";
-      if (!moved) {
-        content.style.transform = "";
-        return;
-      }
-      const matrix = getComputedStyle(content).transform;
-      let x = 0;
-      if (matrix && matrix !== "none") {
-        const m = new DOMMatrixReadOnly(matrix);
-        x = m.m41;
-      }
-      state.swipedScheduleId = x <= -openThreshold ? id : null;
-      item.dataset.skipClick = "1";
-      setTimeout(() => {
-        delete item.dataset.skipClick;
-      }, 150);
-      render();
-    });
   });
 }
 

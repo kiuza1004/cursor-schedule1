@@ -321,34 +321,6 @@ textarea {
   background: var(--bg);
 }
 
-.list li.schedule-item {
-  position: relative;
-  overflow: hidden;
-  padding: 0;
-  touch-action: pan-y;
-}
-
-.schedule-content {
-  position: relative;
-  z-index: 2;
-  background: var(--bg);
-  padding: 0.45rem 0.55rem;
-  transition: transform 0.18s ease;
-  will-change: transform;
-}
-
-.schedule-item.is-swiped .schedule-content {
-  transform: translateX(-78px);
-}
-
-.swipe-delete-btn {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 1;
-}
-
 .list li:hover {
   border-color: var(--accent);
 }
