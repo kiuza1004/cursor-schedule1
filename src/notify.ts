@@ -24,6 +24,41 @@ function alarmMoment(s: Schedule): Date | null {
   return new Date(ms);
 }
 
+function playBasicBell(): void {
+  try {
+    const Ctx = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const now = ctx.currentTime;
+    for (let i = 0; i < 3; i++) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.0001, now + i * 0.25);
+      gain.gain.exponentialRampToValueAtTime(0.2, now + i * 0.25 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.25 + 0.18);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + i * 0.25);
+      osc.stop(now + i * 0.25 + 0.2);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+function triggerAlarmEffects(s: Schedule): void {
+  if (s.alarmSound) playBasicBell();
+  if (s.alarmVibrate && "vibrate" in navigator) {
+    try {
+      navigator.vibrate([250, 100, 250, 100, 250]);
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
 export async function ensureNotifyPermission(): Promise<boolean> {
   if (!("Notification" in window)) return false;
   if (Notification.permission === "granted") return true;
@@ -33,21 +68,53 @@ export async function ensureNotifyPermission(): Promise<boolean> {
 }
 
 export function checkAndFireAlarms(schedules: Schedule[], now = new Date()): void {
-  if (!("Notification" in window) || Notification.permission !== "granted") return;
   const t = now.getTime();
   for (const s of schedules) {
     if (!s.alarmEnabled || !s.memo.trim()) continue;
     const when = alarmMoment(s);
     if (!when) continue;
     const diff = t - when.getTime();
-    if (diff < 0 || diff > 120_000) continue;
+    if (diff < 0 || diff > 10_000) continue;
     const fireAtMs = when.getTime();
     if (wasFired(s.id, fireAtMs)) continue;
     markFired(s.id, fireAtMs);
-    try {
-      new Notification("일정 알람", { body: s.memo, tag: s.id });
-    } catch {
-      /* ignore */
+    triggerAlarmEffects(s);
+    if ("Notification" in window && Notification.permission === "granted") {
+      try {
+        new Notification("일정 알람", { body: s.memo, tag: s.id });
+      } catch {
+        /* ignore */
+      }
     }
   }
+}
+
+let timer: number | null = null;
+
+function nextAlarmDelayMs(schedules: Schedule[]): number {
+  const now = Date.now();
+  let nearest: number | null = null;
+  for (const s of schedules) {
+    if (!s.alarmEnabled) continue;
+    const when = alarmMoment(s);
+    if (!when) continue;
+    const ms = when.getTime();
+    if (ms < now) continue;
+    if (nearest === null || ms < nearest) nearest = ms;
+  }
+  if (nearest === null) return 30_000;
+  return Math.max(300, Math.min(nearest - now + 50, 30_000));
+}
+
+export function startAlarmScheduler(getSchedules: () => Schedule[]): void {
+  if (timer !== null) {
+    window.clearTimeout(timer);
+    timer = null;
+  }
+  const tick = () => {
+    checkAndFireAlarms(getSchedules(), new Date());
+    const delay = nextAlarmDelayMs(getSchedules());
+    timer = window.setTimeout(tick, delay);
+  };
+  tick();
 }

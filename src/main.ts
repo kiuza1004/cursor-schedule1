@@ -2,7 +2,7 @@ import "./style.css";
 import type { Anniversary, AppData, Schedule, SearchState } from "./types";
 import { addDays, daysInMonth, pad2, parseDateKey, startOfToday, toDateKey } from "./format";
 import { loadData, saveData } from "./storage";
-import { checkAndFireAlarms, ensureNotifyPermission } from "./notify";
+import { checkAndFireAlarms, ensureNotifyPermission, startAlarmScheduler } from "./notify";
 
 type Expanded = {
   schedule: boolean;
@@ -16,6 +16,8 @@ type FormSnapshot = {
   alarmHour: number;
   alarmMinute: number;
   alarmBefore: number;
+  alarmSound: boolean;
+  alarmVibrate: boolean;
   editingId: string | null;
 };
 
@@ -40,6 +42,8 @@ function emptyFormSnapshot(): FormSnapshot {
     alarmHour: 9,
     alarmMinute: 0,
     alarmBefore: 0,
+    alarmSound: true,
+    alarmVibrate: false,
     editingId: null,
   };
 }
@@ -55,6 +59,8 @@ function snapshotsEqual(a: FormSnapshot, b: FormSnapshot): boolean {
     a.alarmHour === b.alarmHour &&
     a.alarmMinute === b.alarmMinute &&
     a.alarmBefore === b.alarmBefore &&
+    a.alarmSound === b.alarmSound &&
+    a.alarmVibrate === b.alarmVibrate &&
     a.editingId === b.editingId
   );
 }
@@ -66,6 +72,8 @@ function scheduleToDraft(s: Schedule): FormSnapshot {
     alarmHour: s.alarmHour,
     alarmMinute: s.alarmMinute,
     alarmBefore: s.alarmBeforeMinutes,
+    alarmSound: s.alarmSound,
+    alarmVibrate: s.alarmVibrate,
     editingId: s.id,
   };
 }
@@ -209,6 +217,14 @@ function mountBeforeSelect(): string {
   return BEFORE_OPTIONS.map((o) => `<option value="${o.minutes}">${o.label}</option>`).join("");
 }
 
+function mountAlarmExtraOptions(draft: FormSnapshot): string {
+  return `<div class="row" style="margin-top:0.45rem"><label style="margin:0"><input type="checkbox" id="fld-alarm-sound" ${
+    draft.alarmSound ? "checked" : ""
+  } /> 벨소리(기본)</label><label style="margin:0"><input type="checkbox" id="fld-alarm-vibrate" ${
+    draft.alarmVibrate ? "checked" : ""
+  } /> 진동</label></div>`;
+}
+
 function mountMonthSelect(id: string, selected: number): string {
   let html = "";
   for (let m = 1; m <= 12; m++) {
@@ -323,7 +339,7 @@ function render(): void {
     const alarmTxt = s.alarmEnabled
       ? `알람 ${pad2(s.alarmHour)}:${pad2(s.alarmMinute)}${
           s.alarmBeforeMinutes ? ` (${beforeLabel(s.alarmBeforeMinutes)} 전)` : ""
-        }`
+        }${s.alarmSound ? " · 벨소리" : ""}${s.alarmVibrate ? " · 진동" : ""}`
       : "알람 없음";
     listItems.push(
       `<li data-sid="${escapeAttr(s.id)}"><div>${escapeHtml(s.memo)}</div><div class="list-meta">${escapeHtml(
@@ -381,6 +397,7 @@ function render(): void {
               <label for="fld-before">알림 시점</label>
               <select id="fld-before">${mountBeforeSelect()}</select>
             </div>
+            ${mountAlarmExtraOptions(d)}
           </div>
         </div>
         <button type="button" class="btn btn-primary" id="btn-save" style="width:100%">일정 저장</button>
@@ -459,9 +476,13 @@ function render(): void {
   const hourEl = app.querySelector("#fld-hour") as HTMLSelectElement | null;
   const minEl = app.querySelector("#fld-minute") as HTMLSelectElement | null;
   const beforeEl = app.querySelector("#fld-before") as HTMLSelectElement | null;
+  const soundEl = app.querySelector("#fld-alarm-sound") as HTMLInputElement | null;
+  const vibrateEl = app.querySelector("#fld-alarm-vibrate") as HTMLInputElement | null;
   if (hourEl) hourEl.value = String(d.alarmHour);
   if (minEl) minEl.value = String(d.alarmMinute);
   if (beforeEl) beforeEl.value = String(d.alarmBefore);
+  if (soundEl) soundEl.checked = d.alarmSound;
+  if (vibrateEl) vibrateEl.checked = d.alarmVibrate;
 
   wireAnniversaryList(app);
   wireSearchResults(app);
@@ -528,15 +549,13 @@ function render(): void {
       return;
     }
     if (state.draft.alarmEnabled) {
-      const ok = await ensureNotifyPermission();
-      if (!ok) {
-        alert("알림 권한이 필요합니다. 브라우저 설정에서 알림을 허용해 주세요.");
-        return;
-      }
+      await ensureNotifyPermission();
     }
     const hour = state.draft.alarmHour;
     const minute = state.draft.alarmMinute;
     const before = state.draft.alarmBefore;
+    const alarmSound = state.draft.alarmSound;
+    const alarmVibrate = state.draft.alarmVibrate;
     const editing = state.draft.editingId;
 
     if (editing) {
@@ -550,6 +569,8 @@ function render(): void {
           alarmHour: hour,
           alarmMinute: minute,
           alarmBeforeMinutes: before,
+          alarmSound,
+          alarmVibrate,
         };
       }
     } else {
@@ -561,6 +582,8 @@ function render(): void {
         alarmHour: hour,
         alarmMinute: minute,
         alarmBeforeMinutes: before,
+        alarmSound,
+        alarmVibrate,
       };
       state.data.schedules.push(s);
     }
@@ -700,6 +723,8 @@ function wireDraftSync(app: HTMLElement): void {
   const hourEl = app.querySelector("#fld-hour") as HTMLSelectElement | null;
   const minEl = app.querySelector("#fld-minute") as HTMLSelectElement | null;
   const beforeEl = app.querySelector("#fld-before") as HTMLSelectElement | null;
+  const soundEl = app.querySelector("#fld-alarm-sound") as HTMLInputElement | null;
+  const vibrateEl = app.querySelector("#fld-alarm-vibrate") as HTMLInputElement | null;
   hourEl?.addEventListener("change", () => {
     state.draft.alarmHour = Number(hourEl.value);
   });
@@ -708,6 +733,12 @@ function wireDraftSync(app: HTMLElement): void {
   });
   beforeEl?.addEventListener("change", () => {
     state.draft.alarmBefore = Number(beforeEl.value);
+  });
+  soundEl?.addEventListener("change", () => {
+    state.draft.alarmSound = soundEl.checked;
+  });
+  vibrateEl?.addEventListener("change", () => {
+    state.draft.alarmVibrate = vibrateEl.checked;
   });
 }
 
@@ -831,7 +862,7 @@ function boot(): void {
   state.draft = e;
   state.formBaseline = cloneSnap(e);
   render();
-  setInterval(() => checkAndFireAlarms(state.data.schedules), 30_000);
+  startAlarmScheduler(() => state.data.schedules);
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") checkAndFireAlarms(state.data.schedules);
   });

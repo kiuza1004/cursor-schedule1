@@ -7,6 +7,8 @@ export type Schedule = {
   alarmMinute: number;
   /** 0 = 정시, 양수 = 해당 분만큼 일찍 */
   alarmBeforeMinutes: number;
+  alarmSound: boolean;
+  alarmVibrate: boolean;
 };
 
 export type Anniversary = {

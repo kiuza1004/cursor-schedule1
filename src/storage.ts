@@ -12,7 +12,12 @@ export function loadData(): AppData {
     if (p?.version !== 1 || !Array.isArray(p.schedules) || !Array.isArray(p.anniversaries)) {
       return structuredClone(empty);
     }
-    return p;
+    const schedules = p.schedules.map((s) => ({
+      ...s,
+      alarmSound: typeof (s as { alarmSound?: unknown }).alarmSound === "boolean" ? s.alarmSound : true,
+      alarmVibrate: typeof (s as { alarmVibrate?: unknown }).alarmVibrate === "boolean" ? s.alarmVibrate : false,
+    }));
+    return { ...p, schedules };
   } catch {
     return structuredClone(empty);
   }
