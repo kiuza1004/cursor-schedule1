@@ -27,29 +27,6 @@ function alarmMoment(s: Schedule): Date | null {
   return new Date(ms);
 }
 
-function playBasicBell(): void {
-  try {
-    const ctx = getOrCreateAudioContext();
-    if (!ctx) return;
-    const now = ctx.currentTime;
-    for (let i = 0; i < 3; i++) {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.value = 880;
-      gain.gain.setValueAtTime(0.0001, now + i * 0.25);
-      gain.gain.exponentialRampToValueAtTime(0.2, now + i * 0.25 + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.25 + 0.18);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(now + i * 0.25);
-      osc.stop(now + i * 0.25 + 0.2);
-    }
-  } catch {
-    /* ignore */
-  }
-}
-
 function getOrCreateAudioContext(): AudioContext | null {
   const Ctx = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
   if (!Ctx) return null;
@@ -65,14 +42,60 @@ function maybeShowAudioHint(): void {
   }, 0);
 }
 
-function triggerAlarmEffects(s: Schedule): void {
-  if (s.alarmSound) {
-    playBasicBell();
-    if (alarmAudioCtx && alarmAudioCtx.state !== "running") maybeShowAudioHint();
+function scheduleTone(ctx: AudioContext, start: number, duration: number, freq: number, volume = 0.16): void {
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = "sine";
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.exponentialRampToValueAtTime(volume, start + 0.015);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(start);
+  osc.stop(start + duration + 0.02);
+}
+
+function playToneFor30s(tone: Schedule["alarmTone"]): void {
+  try {
+    const ctx = getOrCreateAudioContext();
+    if (!ctx) return;
+    const start = ctx.currentTime + 0.01;
+    const end = start + 30;
+    if (tone === "dingdong") {
+      for (let t = start; t < end; t += 1.1) {
+        scheduleTone(ctx, t, 0.16, 1046, 0.17);
+        scheduleTone(ctx, t + 0.22, 0.2, 784, 0.15);
+      }
+      return;
+    }
+    if (tone === "phone") {
+      for (let t = start; t < end; t += 1.6) {
+        scheduleTone(ctx, t, 0.22, 740, 0.18);
+        scheduleTone(ctx, t + 0.3, 0.22, 880, 0.18);
+        scheduleTone(ctx, t + 0.8, 0.22, 740, 0.18);
+        scheduleTone(ctx, t + 1.1, 0.22, 880, 0.18);
+      }
+      return;
+    }
+    for (let t = start; t < end; t += 0.8) {
+      scheduleTone(ctx, t, 0.22, 880, 0.17);
+    }
+  } catch {
+    /* ignore */
   }
+}
+
+function triggerAlarmEffects(s: Schedule): void {
+  playToneFor30s(s.alarmTone);
+  if (alarmAudioCtx && alarmAudioCtx.state !== "running") maybeShowAudioHint();
   if (s.alarmVibrate && "vibrate" in navigator) {
     try {
-      navigator.vibrate([250, 100, 250, 100, 250]);
+      const pattern: number[] = [];
+      for (let i = 0; i < 25; i++) {
+        pattern.push(400, 200);
+      }
+      navigator.vibrate(pattern);
     } catch {
       /* ignore */
     }

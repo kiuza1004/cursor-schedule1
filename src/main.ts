@@ -16,7 +16,7 @@ type FormSnapshot = {
   alarmHour: number;
   alarmMinute: number;
   alarmBefore: number;
-  alarmSound: boolean;
+  alarmTone: "beep" | "dingdong" | "phone";
   alarmVibrate: boolean;
   editingId: string | null;
 };
@@ -43,7 +43,7 @@ function emptyFormSnapshot(): FormSnapshot {
     alarmHour: 9,
     alarmMinute: 0,
     alarmBefore: 0,
-    alarmSound: true,
+    alarmTone: "beep",
     alarmVibrate: false,
     editingId: null,
   };
@@ -60,7 +60,7 @@ function snapshotsEqual(a: FormSnapshot, b: FormSnapshot): boolean {
     a.alarmHour === b.alarmHour &&
     a.alarmMinute === b.alarmMinute &&
     a.alarmBefore === b.alarmBefore &&
-    a.alarmSound === b.alarmSound &&
+    a.alarmTone === b.alarmTone &&
     a.alarmVibrate === b.alarmVibrate &&
     a.editingId === b.editingId
   );
@@ -73,7 +73,7 @@ function scheduleToDraft(s: Schedule): FormSnapshot {
     alarmHour: s.alarmHour,
     alarmMinute: s.alarmMinute,
     alarmBefore: s.alarmBeforeMinutes,
-    alarmSound: s.alarmSound,
+    alarmTone: s.alarmTone,
     alarmVibrate: s.alarmVibrate,
     editingId: s.id,
   };
@@ -219,9 +219,11 @@ function mountBeforeSelect(): string {
 }
 
 function mountAlarmExtraOptions(draft: FormSnapshot): string {
-  return `<div class="row" style="margin-top:0.45rem"><label style="margin:0"><input type="checkbox" id="fld-alarm-sound" ${
-    draft.alarmSound ? "checked" : ""
-  } /> 벨소리(기본)</label><label style="margin:0"><input type="checkbox" id="fld-alarm-vibrate" ${
+  return `<div class="row" style="margin-top:0.45rem"><div class="field" style="margin:0;flex:1"><label for="fld-alarm-tone">벨소리</label><select id="fld-alarm-tone"><option value="beep" ${
+    draft.alarmTone === "beep" ? "selected" : ""
+  }>기본 삐</option><option value="dingdong" ${draft.alarmTone === "dingdong" ? "selected" : ""}>딩동</option><option value="phone" ${
+    draft.alarmTone === "phone" ? "selected" : ""
+  }>전화벨</option></select></div><label style="margin:0"><input type="checkbox" id="fld-alarm-vibrate" ${
     draft.alarmVibrate ? "checked" : ""
   } /> 진동</label></div>`;
 }
@@ -364,7 +366,7 @@ function render(): void {
     const alarmTxt = s.alarmEnabled
       ? `알람 ${pad2(s.alarmHour)}:${pad2(s.alarmMinute)}${
           s.alarmBeforeMinutes ? ` (${beforeLabel(s.alarmBeforeMinutes)} 전)` : ""
-        }${s.alarmSound ? " · 벨소리" : ""}${s.alarmVibrate ? " · 진동" : ""}`
+        } · ${toneLabel(s.alarmTone)}${s.alarmVibrate ? " · 진동" : ""}`
       : "알람 없음";
     listItems.push(
       `<li data-sid="${escapeAttr(s.id)}"><div>${escapeHtml(s.memo)}</div><div class="list-meta">${escapeHtml(
@@ -501,12 +503,12 @@ function render(): void {
   const hourEl = app.querySelector("#fld-hour") as HTMLSelectElement | null;
   const minEl = app.querySelector("#fld-minute") as HTMLSelectElement | null;
   const beforeEl = app.querySelector("#fld-before") as HTMLSelectElement | null;
-  const soundEl = app.querySelector("#fld-alarm-sound") as HTMLInputElement | null;
+  const toneEl = app.querySelector("#fld-alarm-tone") as HTMLSelectElement | null;
   const vibrateEl = app.querySelector("#fld-alarm-vibrate") as HTMLInputElement | null;
   if (hourEl) hourEl.value = String(d.alarmHour);
   if (minEl) minEl.value = String(d.alarmMinute);
   if (beforeEl) beforeEl.value = String(d.alarmBefore);
-  if (soundEl) soundEl.checked = d.alarmSound;
+  if (toneEl) toneEl.value = d.alarmTone;
   if (vibrateEl) vibrateEl.checked = d.alarmVibrate;
 
   wireAnniversaryList(app);
@@ -580,7 +582,7 @@ function render(): void {
     const hour = state.draft.alarmHour;
     const minute = state.draft.alarmMinute;
     const before = state.draft.alarmBefore;
-    const alarmSound = state.draft.alarmSound;
+    const alarmTone = state.draft.alarmTone;
     const alarmVibrate = state.draft.alarmVibrate;
     const editing = state.draft.editingId;
 
@@ -595,7 +597,7 @@ function render(): void {
           alarmHour: hour,
           alarmMinute: minute,
           alarmBeforeMinutes: before,
-          alarmSound,
+          alarmTone,
           alarmVibrate,
         };
       }
@@ -608,7 +610,7 @@ function render(): void {
         alarmHour: hour,
         alarmMinute: minute,
         alarmBeforeMinutes: before,
-        alarmSound,
+        alarmTone,
         alarmVibrate,
       };
       state.data.schedules.push(s);
@@ -749,7 +751,7 @@ function wireDraftSync(app: HTMLElement): void {
   const hourEl = app.querySelector("#fld-hour") as HTMLSelectElement | null;
   const minEl = app.querySelector("#fld-minute") as HTMLSelectElement | null;
   const beforeEl = app.querySelector("#fld-before") as HTMLSelectElement | null;
-  const soundEl = app.querySelector("#fld-alarm-sound") as HTMLInputElement | null;
+  const toneEl = app.querySelector("#fld-alarm-tone") as HTMLSelectElement | null;
   const vibrateEl = app.querySelector("#fld-alarm-vibrate") as HTMLInputElement | null;
   hourEl?.addEventListener("change", () => {
     state.draft.alarmHour = Number(hourEl.value);
@@ -760,8 +762,8 @@ function wireDraftSync(app: HTMLElement): void {
   beforeEl?.addEventListener("change", () => {
     state.draft.alarmBefore = Number(beforeEl.value);
   });
-  soundEl?.addEventListener("change", () => {
-    state.draft.alarmSound = soundEl.checked;
+  toneEl?.addEventListener("change", () => {
+    state.draft.alarmTone = toneEl.value as "beep" | "dingdong" | "phone";
   });
   vibrateEl?.addEventListener("change", () => {
     state.draft.alarmVibrate = vibrateEl.checked;
@@ -771,6 +773,12 @@ function wireDraftSync(app: HTMLElement): void {
 function beforeLabel(minutes: number): string {
   const f = BEFORE_OPTIONS.find((o) => o.minutes === minutes);
   return f?.label ?? `${minutes}분`;
+}
+
+function toneLabel(tone: "beep" | "dingdong" | "phone"): string {
+  if (tone === "dingdong") return "딩동";
+  if (tone === "phone") return "전화벨";
+  return "기본 삐";
 }
 
 function refreshDayOptions(sel: HTMLSelectElement, month: number, keepDay: number): void {

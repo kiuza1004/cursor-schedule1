@@ -14,7 +14,12 @@ export function loadData(): AppData {
     }
     const schedules = p.schedules.map((s) => ({
       ...s,
-      alarmSound: typeof (s as { alarmSound?: unknown }).alarmSound === "boolean" ? s.alarmSound : true,
+      alarmTone:
+        typeof (s as { alarmTone?: unknown }).alarmTone === "string"
+          ? ((s as { alarmTone: "beep" | "dingdong" | "phone" }).alarmTone ?? "beep")
+          : (s as { alarmSound?: boolean }).alarmSound === false
+            ? "beep"
+            : "beep",
       alarmVibrate: typeof (s as { alarmVibrate?: unknown }).alarmVibrate === "boolean" ? s.alarmVibrate : false,
     }));
     return { ...p, schedules };
