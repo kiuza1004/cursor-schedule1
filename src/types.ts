@@ -7,7 +7,7 @@ export type Schedule = {
   alarmMinute: number;
   /** 0 = 정시, 양수 = 해당 분만큼 일찍 */
   alarmBeforeMinutes: number;
-  alarmTone: "beep" | "dingdong" | "phone";
+  alarmTone: "none" | "beep" | "dingdong" | "phone";
   alarmVibrate: boolean;
 };
 

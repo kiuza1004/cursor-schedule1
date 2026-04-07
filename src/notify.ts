@@ -58,6 +58,7 @@ function scheduleTone(ctx: AudioContext, start: number, duration: number, freq: 
 
 function playToneFor30s(tone: Schedule["alarmTone"]): void {
   try {
+    if (tone === "none") return;
     const ctx = getOrCreateAudioContext();
     if (!ctx) return;
     const start = ctx.currentTime + 0.01;

@@ -16,7 +16,7 @@ type FormSnapshot = {
   alarmHour: number;
   alarmMinute: number;
   alarmBefore: number;
-  alarmTone: "beep" | "dingdong" | "phone";
+  alarmTone: "none" | "beep" | "dingdong" | "phone";
   alarmVibrate: boolean;
   editingId: string | null;
 };
@@ -219,7 +219,9 @@ function mountBeforeSelect(): string {
 }
 
 function mountAlarmExtraOptions(draft: FormSnapshot): string {
-  return `<div class="row" style="margin-top:0.45rem"><div class="field" style="margin:0;flex:1"><label for="fld-alarm-tone">벨소리</label><select id="fld-alarm-tone"><option value="beep" ${
+  return `<div class="row" style="margin-top:0.45rem"><div class="field" style="margin:0;flex:1"><label for="fld-alarm-tone">벨소리</label><select id="fld-alarm-tone"><option value="none" ${
+    draft.alarmTone === "none" ? "selected" : ""
+  }>없음</option><option value="beep" ${
     draft.alarmTone === "beep" ? "selected" : ""
   }>기본 삐</option><option value="dingdong" ${draft.alarmTone === "dingdong" ? "selected" : ""}>딩동</option><option value="phone" ${
     draft.alarmTone === "phone" ? "selected" : ""
@@ -366,7 +368,7 @@ function render(): void {
     const alarmTxt = s.alarmEnabled
       ? `알람 ${pad2(s.alarmHour)}:${pad2(s.alarmMinute)}${
           s.alarmBeforeMinutes ? ` (${beforeLabel(s.alarmBeforeMinutes)} 전)` : ""
-        } · ${toneLabel(s.alarmTone)}${s.alarmVibrate ? " · 진동" : ""}`
+        }${s.alarmTone !== "none" ? ` · ${toneLabel(s.alarmTone)}` : ""}${s.alarmVibrate ? " · 진동" : ""}`
       : "알람 없음";
     listItems.push(
       `<li data-sid="${escapeAttr(s.id)}"><div>${escapeHtml(s.memo)}</div><div class="list-meta">${escapeHtml(
@@ -578,6 +580,10 @@ function render(): void {
     }
     if (state.draft.alarmEnabled) {
       await ensureNotifyPermission();
+      if (state.draft.alarmTone === "none" && !state.draft.alarmVibrate) {
+        alert("알람 사용 시 벨소리 또는 진동 중 하나 이상을 선택해 주세요.");
+        return;
+      }
     }
     const hour = state.draft.alarmHour;
     const minute = state.draft.alarmMinute;
@@ -763,7 +769,7 @@ function wireDraftSync(app: HTMLElement): void {
     state.draft.alarmBefore = Number(beforeEl.value);
   });
   toneEl?.addEventListener("change", () => {
-    state.draft.alarmTone = toneEl.value as "beep" | "dingdong" | "phone";
+    state.draft.alarmTone = toneEl.value as "none" | "beep" | "dingdong" | "phone";
   });
   vibrateEl?.addEventListener("change", () => {
     state.draft.alarmVibrate = vibrateEl.checked;
@@ -775,7 +781,8 @@ function beforeLabel(minutes: number): string {
   return f?.label ?? `${minutes}분`;
 }
 
-function toneLabel(tone: "beep" | "dingdong" | "phone"): string {
+function toneLabel(tone: "none" | "beep" | "dingdong" | "phone"): string {
+  if (tone === "none") return "없음";
   if (tone === "dingdong") return "딩동";
   if (tone === "phone") return "전화벨";
   return "기본 삐";

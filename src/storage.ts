@@ -16,9 +16,9 @@ export function loadData(): AppData {
       ...s,
       alarmTone:
         typeof (s as { alarmTone?: unknown }).alarmTone === "string"
-          ? ((s as { alarmTone: "beep" | "dingdong" | "phone" }).alarmTone ?? "beep")
+          ? ((s as { alarmTone: "none" | "beep" | "dingdong" | "phone" }).alarmTone ?? "beep")
           : (s as { alarmSound?: boolean }).alarmSound === false
-            ? "beep"
+            ? "none"
             : "beep",
       alarmVibrate: typeof (s as { alarmVibrate?: unknown }).alarmVibrate === "boolean" ? s.alarmVibrate : false,
     }));
