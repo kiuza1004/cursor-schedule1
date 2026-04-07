@@ -2,7 +2,7 @@ import "./style.css";
 import type { Anniversary, AppData, Schedule, SearchState } from "./types";
 import { addDays, daysInMonth, pad2, parseDateKey, startOfToday, toDateKey } from "./format";
 import { loadData, saveData } from "./storage";
-import { checkAndFireAlarms, ensureNotifyPermission, startAlarmScheduler } from "./notify";
+import { checkAndFireAlarms, ensureNotifyPermission, primeAlarmAudioByGesture, startAlarmScheduler } from "./notify";
 
 type Expanded = {
   schedule: boolean;
@@ -22,6 +22,7 @@ type FormSnapshot = {
 };
 
 const PAGE = 10;
+let liveClockTimer: number | null = null;
 
 const BEFORE_OPTIONS: { label: string; minutes: number }[] = [
   { label: "정시", minutes: 0 },
@@ -280,6 +281,30 @@ function runSearch(): void {
   state.search.hasSearched = true;
 }
 
+function formatLiveDateTime(d: Date): string {
+  const y = d.getFullYear();
+  const mo = pad2(d.getMonth() + 1);
+  const day = pad2(d.getDate());
+  const hh = pad2(d.getHours());
+  const mm = pad2(d.getMinutes());
+  const ss = pad2(d.getSeconds());
+  return `${y}-${mo}-${day} ${hh}:${mm}:${ss}`;
+}
+
+function syncLiveDateTime(): void {
+  const el = document.getElementById("live-now");
+  if (!el) return;
+  el.textContent = formatLiveDateTime(new Date());
+}
+
+function startLiveClock(): void {
+  if (liveClockTimer !== null) return;
+  syncLiveDateTime();
+  liveClockTimer = window.setInterval(() => {
+    syncLiveDateTime();
+  }, 1000);
+}
+
 function render(): void {
   const app = document.getElementById("app");
   if (!app) return;
@@ -356,7 +381,7 @@ function render(): void {
   const d = state.draft;
 
   app.innerHTML = `
-    <header class="app-header">일정 관리</header>
+    <header class="app-header"><span>일정 관리</span><span id="live-now" class="live-now"></span></header>
 
     <section class="card" aria-label="달력">
       <div class="card-body" style="border-top:none">
@@ -487,6 +512,7 @@ function render(): void {
   wireAnniversaryList(app);
   wireSearchResults(app);
   wireDraftSync(app);
+  syncLiveDateTime();
 
   if (state.modal) {
     document.getElementById("modal-yes")?.addEventListener("click", () => state.modal?.onYes());
@@ -862,10 +888,15 @@ function boot(): void {
   state.draft = e;
   state.formBaseline = cloneSnap(e);
   render();
+  startLiveClock();
+  primeAlarmAudioByGesture();
   startAlarmScheduler(() => state.data.schedules);
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") checkAndFireAlarms(state.data.schedules);
   });
+  window.addEventListener("focus", () => checkAndFireAlarms(state.data.schedules));
+  window.addEventListener("pageshow", () => checkAndFireAlarms(state.data.schedules));
+  window.addEventListener("online", () => checkAndFireAlarms(state.data.schedules));
 }
 
 boot();

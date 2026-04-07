@@ -43,10 +43,21 @@ body {
 }
 
 .app-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
   font-size: 1.15rem;
   font-weight: 700;
   margin: 0 0 var(--space);
   letter-spacing: -0.02em;
+}
+
+.live-now {
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .card {

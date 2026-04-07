@@ -2,6 +2,9 @@ import type { Schedule } from "./types";
 import { parseDateKey } from "./format";
 
 const FIRED_PREFIX = "cursor-schedule1-fired:";
+const MISSED_GRACE_MS = 10 * 60_000;
+const AUDIO_HINT_KEY = "cursor-schedule1-audio-hint-shown";
+let alarmAudioCtx: AudioContext | null = null;
 
 function firedKey(id: string, fireAtMs: number): string {
   return `${FIRED_PREFIX}${id}:${fireAtMs}`;
@@ -26,9 +29,8 @@ function alarmMoment(s: Schedule): Date | null {
 
 function playBasicBell(): void {
   try {
-    const Ctx = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!Ctx) return;
-    const ctx = new Ctx();
+    const ctx = getOrCreateAudioContext();
+    if (!ctx) return;
     const now = ctx.currentTime;
     for (let i = 0; i < 3; i++) {
       const osc = ctx.createOscillator();
@@ -48,8 +50,26 @@ function playBasicBell(): void {
   }
 }
 
+function getOrCreateAudioContext(): AudioContext | null {
+  const Ctx = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!Ctx) return null;
+  if (!alarmAudioCtx) alarmAudioCtx = new Ctx();
+  return alarmAudioCtx;
+}
+
+function maybeShowAudioHint(): void {
+  if (sessionStorage.getItem(AUDIO_HINT_KEY) === "1") return;
+  sessionStorage.setItem(AUDIO_HINT_KEY, "1");
+  window.setTimeout(() => {
+    alert("알람 벨소리가 안 들리면 화면을 한 번 터치해 오디오 권한을 활성화해 주세요.");
+  }, 0);
+}
+
 function triggerAlarmEffects(s: Schedule): void {
-  if (s.alarmSound) playBasicBell();
+  if (s.alarmSound) {
+    playBasicBell();
+    if (alarmAudioCtx && alarmAudioCtx.state !== "running") maybeShowAudioHint();
+  }
   if (s.alarmVibrate && "vibrate" in navigator) {
     try {
       navigator.vibrate([250, 100, 250, 100, 250]);
@@ -74,7 +94,7 @@ export function checkAndFireAlarms(schedules: Schedule[], now = new Date()): voi
     const when = alarmMoment(s);
     if (!when) continue;
     const diff = t - when.getTime();
-    if (diff < 0 || diff > 10_000) continue;
+    if (diff < 0 || diff > MISSED_GRACE_MS) continue;
     const fireAtMs = when.getTime();
     if (wasFired(s.id, fireAtMs)) continue;
     markFired(s.id, fireAtMs);
@@ -117,4 +137,19 @@ export function startAlarmScheduler(getSchedules: () => Schedule[]): void {
     timer = window.setTimeout(tick, delay);
   };
   tick();
+}
+
+export function primeAlarmAudioByGesture(): void {
+  const unlock = () => {
+    const ctx = getOrCreateAudioContext();
+    if (ctx && ctx.state !== "running") {
+      void ctx.resume();
+    }
+    window.removeEventListener("pointerdown", unlock);
+    window.removeEventListener("touchstart", unlock);
+    window.removeEventListener("keydown", unlock);
+  };
+  window.addEventListener("pointerdown", unlock, { passive: true });
+  window.addEventListener("touchstart", unlock, { passive: true });
+  window.addEventListener("keydown", unlock);
 }
